@@ -35,6 +35,23 @@ public class CsvUploadService {
     this.jdbcTemplate = jdbcTemplate;
     this.itemRepository = itemRepository;
   }
+  // New: Map to hold the status of the current (or last) running job
+  private final Map<String, Status> jobStatus = new ConcurrentHashMap<>();
+
+  // New: Status record to hold the progress information
+  public record Status(String message, String step) {} // <-- New record
+
+  // New: Public method for the controller to get the status
+  public Status getStatus() {
+    return jobStatus.getOrDefault("currentJob", new Status("Not Started", "START"));
+  }
+
+  // New: Helper to update the status map
+  private void updateStatus(String step, String message) {
+    // Using a fixed key "currentJob" for simplicity
+    jobStatus.put("currentJob", new Status(message, step));
+    System.out.println("STATUS UPDATE: " + step + " - " + message);
+  }
 
   /**
    * Holds a summary of validation errors encountered, mapping the error message
@@ -53,9 +70,14 @@ public class CsvUploadService {
    * Public entry point.
    */
   public UploadResult handleUpload(MultipartFile file, Mode mode) throws Exception {
+    updateStatus("FILE_RECEIVED", "File successfully uploaded to server's temporary storage."); // <-- Status Update 1
     // stream the file; do NOT read fully into memory
-    try (InputStream in = file.getInputStream();
+//    InputStream reads raw binary data
+    try (
+            InputStream in = file.getInputStream();
+         //InputStreamReader converts raw binary to text characters
          InputStreamReader isr = new InputStreamReader(in);
+         // stores the stream in large chunks for fast read and to prevent expensive I/O
          BufferedReader reader = new BufferedReader(isr)) {
 
       CsvParserSettings settings = new CsvParserSettings();
@@ -66,11 +88,16 @@ public class CsvUploadService {
       parser.beginParsing(reader);
 
       try {
+        UploadResult result;
         if (mode == Mode.ALL_OR_NOTHING) {
-          return processAllOrNothing(parser);
+          result = processAllOrNothing(parser);
         } else {
-          return processChunked(parser, 1000); // default chunk size 1000
+          result = processChunked(parser, 1000);
         }
+        // Status Update 2: Validation/Parsing complete (regardless of success/failure)
+        updateStatus("VALIDATION_PARSING_COMPLETE", "Validation and parsing finished.");
+
+        return result;
       } finally {
         // ensure parsing stops and resources are freed
         parser.stopParsing();
@@ -84,6 +111,8 @@ public class CsvUploadService {
    */
   @Transactional
   protected UploadResult processAllOrNothing(CsvParser parser) {
+    updateStatus("PROCESS All OR NOTHING STARTED", "Validation and parsing finished.");
+//    batch holds the entire csv for validation
     List<Item> batch = new ArrayList<>();
     long processed = 0L;
     long failed = 0L;
@@ -109,16 +138,20 @@ public class CsvUploadService {
           err.println(String.join(",", safeArray(row)) + "," + errorMessage);
         }
       }
+      updateStatus("VALIDATION_PARSING_COMPLETE", "Validation and parsing finished.");
 
       // store all in one transaction
       itemRepository.saveAll(batch);
       itemRepository.flush();
 
+      updateStatus("DB_COMMIT_SUCCESS", "Database transaction completed successfully."); // <-- Status Update 3 (Success)
+
       return new UploadResult(processed, batch.size(), failed, errorReport, new ValidationSummary(errorCounts));
     } catch (IOException ex) {
+      updateStatus("FILE_WRITE_FAILED", "Failed to write error report.");
       throw new UncheckedIOException("Failed to write error report", ex);
     } catch (RuntimeException ex) {
-      // any runtime exceptions will cause transaction rollback
+      updateStatus("DB_COMMIT_FAILED", "Database transaction failed and rolled back."); // <-- Status Update 3 (Failure)
       throw ex;
     }
   }
@@ -128,6 +161,7 @@ public class CsvUploadService {
    * Each chunk is saved in its own transaction via saveChunk(...) which is transactional.
    */
   protected UploadResult processChunked(CsvParser parser, int chunkSize) throws IOException {
+    updateStatus("PROCESS CHUNK STARTED", "Validation and parsing finished.");
     List<Item> batch = new ArrayList<>(Math.max(16, chunkSize));
     long processed = 0L;
     long failed = 0L;

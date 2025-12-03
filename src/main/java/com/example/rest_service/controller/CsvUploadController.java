@@ -39,4 +39,9 @@ public class CsvUploadController {
       return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
     }
   }
+  // NEW: Endpoint to check the progress status
+  @GetMapping("/status")
+  public ResponseEntity<CsvUploadService.Status> getUploadStatus() {
+    return ResponseEntity.ok(service.getStatus());
+  }
 }
