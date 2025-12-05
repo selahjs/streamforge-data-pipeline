@@ -10,10 +10,15 @@ import java.util.concurrent.ThreadLocalRandom;
 public class CsvGenerator {
 
   // Target file size (approximately 1 GB)
-  private static final long TARGET_FILE_SIZE_BYTES = 1024L * 1024L * 1024L; // 1 GB
+//  private static final long TARGET_FILE_SIZE_BYTES = 1024L * 1024L * 1024L; // 1 GB
+//
+//  // File path where the CSV will be saved
+//  private static final String FILE_PATH = "large_test_data.csv";
+  // Target file size (approximately 100 MB)
+  private static final long TARGET_FILE_SIZE_BYTES = 50L * 1024L * 1024L; // 100 MB
 
   // File path where the CSV will be saved
-  private static final String FILE_PATH = "large_test_data.csv";
+  private static final String FILE_PATH = "large_test_data_100mb.csv"; // Changed file name
 
   // Fixed length of a typical data row (used for size estimation)
   // externalId (10 digits) + quantity (4 digits) + name (15 chars) + date (10 chars) + 3 commas + 1 newline
@@ -26,7 +31,8 @@ public class CsvGenerator {
     long uniqueIdCounter = 1000000000L; // Starting with a 10-digit unique number
 
     System.out.println("Starting CSV generation...");
-    System.out.printf("Target Size: 1 GB (%d bytes)\n", TARGET_FILE_SIZE_BYTES);
+    System.out.printf("Target Size: 50 MB (%d bytes)\n", TARGET_FILE_SIZE_BYTES);
+//    System.out.printf("Target Size: 1 GB (%d bytes)\n", TARGET_FILE_SIZE_BYTES);
     System.out.printf("Estimated Rows: %,d\n", linesToWrite);
 
     try (BufferedWriter writer = new BufferedWriter(new FileWriter(FILE_PATH))) {
