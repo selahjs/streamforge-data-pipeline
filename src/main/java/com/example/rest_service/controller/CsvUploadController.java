@@ -18,12 +18,18 @@ public class CsvUploadController {
 
   @GetMapping("/test")
   public ResponseEntity<String> test() {
-    return ResponseEntity.ok().body("test");
+    return ResponseEntity.ok().body("Upload Service is Up!");
   }
 
   @PostMapping("/items")
   public ResponseEntity<?> uploadItems(@RequestParam("file") MultipartFile file,
                                        @RequestParam(value="mode", defaultValue="CHUNK_COMMIT") CsvUploadService.Mode mode) {
+    if(file.getOriginalFilename() == null) {
+      return ResponseEntity.badRequest().build();
+    } else if (!file.getOriginalFilename().contains(".csv")) {
+      return ResponseEntity.status(500).body(Map.of("error", "data is not a CSV file","fileName",file.getOriginalFilename()));
+    }
+
     try {
       var res = service.handleUpload(file, mode);
       // Return summary and a link to download error file if any (in real app store it in S3)
