@@ -48,7 +48,14 @@ public class CsvUploadService {
     System.out.println(String.format("JOB[%s] STATUS: %s - %s", jobId, step, message));
   }
 
-  // --- Delegation (The new entry point) ---
+  // Helper function to create a new File instance in a safe location
+  private File getSafeStorageFile(String originalFilename) throws IOException {
+    // Creates a unique file name in the system's temporary directory
+    String tempDir = System.getProperty("java.io.tmpdir");
+    String safeFileName = UUID.randomUUID().toString() + "_" + originalFilename;
+    System.out.println(tempDir);
+    return new File(tempDir, safeFileName);
+  }
 
   /**
    * Public entry point for file upload. Delegates heavy work to the background processor.
@@ -62,9 +69,18 @@ public class CsvUploadService {
     updateStatus(jobId, "INIT", "Upload received, preparing for background processing.", 0, 0);
 
     // 3. Delegate work to the @Async component.
-    // NOTE: The MultipartFile is often saved to a temporary disk location by Spring
-    // to avoid memory issues, allowing the @Async thread to access its InputStream later.
-    processor.startProcessing(file, mode, jobId, jobStatus);
+    // --- NEW: Copy the file SYNCHRONOUSLY before returning ---
+    try {
+      File permanentFile = getSafeStorageFile(file.getOriginalFilename());
+      file.transferTo(permanentFile); // Copies the temporary upload file to a safe location
+
+      // Pass the safe File object to the async processor
+      processor.startProcessing(permanentFile, mode, jobId, jobStatus);
+
+    } catch (IOException e) {
+      updateStatus(jobId, "UPLOAD_FAILED", "Failed to transfer file to safe storage: " + e.getMessage(), 0, 0);
+      return jobId; // Return job ID with failure status
+    }
 
     // 4. Immediately return the Job ID
     return jobId;

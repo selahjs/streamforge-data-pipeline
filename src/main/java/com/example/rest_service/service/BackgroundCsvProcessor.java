@@ -44,7 +44,7 @@ public class BackgroundCsvProcessor {
    * NOTE: Accepts the jobStatus map by reference to allow updates.
    */
   @Async("csvProcessorExecutor")
-  public void startProcessing(MultipartFile file, Mode mode, String jobId, Map<String, Status> jobStatus) {
+  public void startProcessing(File permanentFile, Mode mode, String jobId, Map<String, Status> jobStatus) {
 
     // 1. Optimization: Prefetch all existing IDs ONCE
     updateStatus(jobId, jobStatus, "DB_PREFETCH", "Fetching existing unique IDs from DB...", 0, 0);
@@ -52,7 +52,8 @@ public class BackgroundCsvProcessor {
     updateStatus(jobId, jobStatus, "PREFETCH_COMPLETE", "Unique ID prefetch complete.", 0, 0);
 
     try (
-            InputStream in = file.getInputStream();
+            // Read the File using standard Java IO
+            InputStream in = new FileInputStream(permanentFile);
             InputStreamReader isr = new InputStreamReader(in);
             BufferedReader reader = new BufferedReader(isr)) {
 
@@ -79,6 +80,15 @@ public class BackgroundCsvProcessor {
     } catch (Exception ex) {
       updateStatus(jobId, jobStatus, "JOB_FAILED", "Processing failed: " + ex.getMessage(), 0, 0);
       ex.printStackTrace(); // Log the error
+    } finally {
+      // --- NEW: Delete the permanent file when done (success or failure) ---
+      if (permanentFile != null && permanentFile.exists()) {
+        if (permanentFile.delete()) {
+          System.out.println("Cleaned up file: " + permanentFile.getAbsolutePath());
+        } else {
+          System.err.println("WARNING: Could not delete file: " + permanentFile.getAbsolutePath());
+        }
+      }
     }
   }
 
