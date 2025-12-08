@@ -39,6 +39,17 @@ public class BackgroundCsvProcessor {
     System.out.println(String.format("JOB[%s] STATUS: %s - %s", jobId, step, message));
   }
 
+/**
+ * row count for csv
+ * */
+  private long countLines(File file) throws IOException {
+    try (LineNumberReader reader = new LineNumberReader(new FileReader(file))) {
+      // Skip reading the file content, only count lines
+      while ((reader.readLine()) != null);
+      // Subtract 1 if you are sure there is a header row, otherwise use getLineNumber()
+      return reader.getLineNumber() > 0 ? reader.getLineNumber() - 1 : 0;
+    }
+  }
   /**
    * The entry point for background processing.
    * NOTE: Accepts the jobStatus map by reference to allow updates.
@@ -50,7 +61,17 @@ public class BackgroundCsvProcessor {
     updateStatus(jobId, jobStatus, "DB_PREFETCH", "Fetching existing unique IDs from DB...", 0, 0);
     Set<String> existingExternalIds = itemRepository.findAllExternalIds();
     updateStatus(jobId, jobStatus, "PREFETCH_COMPLETE", "Unique ID prefetch complete.", 0, 0);
-
+// --- NEW: Calculate Total Rows ---
+    long totalRows = 0;
+    try {
+      updateStatus(jobId, jobStatus, "COUNTING_ROWS", "Determining total row count...", 0, 0);
+      // Use a dedicated method for fast line counting
+      totalRows = countLines(permanentFile);
+      updateStatus(jobId, jobStatus, "COUNTING_COMPLETE", "Total rows found: " + totalRows, 0, totalRows);
+    } catch (IOException e) {
+      updateStatus(jobId, jobStatus, "JOB_FAILED", "Failed to count lines: " + e.getMessage(), 0, 0);
+      return;
+    }
     try (
             // Read the File using standard Java IO
             InputStream in = new FileInputStream(permanentFile);
@@ -66,9 +87,9 @@ public class BackgroundCsvProcessor {
 
       // 2. Processing Logic
       if (mode == Mode.ALL_OR_NOTHING) {
-        result = processAllOrNothing(parser, existingExternalIds, jobId, jobStatus);
+        result = processAllOrNothing(parser, existingExternalIds, jobId, jobStatus, totalRows);
       } else {
-        result = processChunked(parser, 1000, existingExternalIds, jobId, jobStatus);
+        result = processChunked(parser, 1000, existingExternalIds, jobId, jobStatus, totalRows);
       }
 
       // 3. Final Status Update
@@ -99,7 +120,7 @@ public class BackgroundCsvProcessor {
    * NOTE: Now accepts the jobStatus map.
    */
   @Transactional
-  protected UploadResult processAllOrNothing(CsvParser parser, Set<String> existingIds, String jobId, Map<String, Status> jobStatus) {
+  protected UploadResult processAllOrNothing(CsvParser parser, Set<String> existingIds, String jobId, Map<String, Status> jobStatus,  long totalRows) {
     updateStatus(jobId, jobStatus, "PROCESS_ALL_OR_NOTHING", "Accumulating all data for single transaction...", 0, 0);
     List<Item> batch = new ArrayList<>();
     long processed = 0L;
@@ -112,7 +133,7 @@ public class BackgroundCsvProcessor {
       while ((row = parser.parseNext()) != null) {
         processed++;
         if (processed % 5000 == 0) { // Dynamic Progress Tracking
-          updateStatus(jobId, jobStatus, "PROCESSING", String.format("Accumulating rows... %d processed", processed), processed, 0);
+          updateStatus(jobId, jobStatus, "PROCESSING", String.format("Accumulating rows... %d processed", processed), processed, totalRows);
         }
 
         Optional<String> validation = validateRow(row, existingIds);
@@ -125,7 +146,7 @@ public class BackgroundCsvProcessor {
           err.println(String.join(",", safeArray(row)) + "," + errorMessage);
         }
       }
-      updateStatus(jobId, jobStatus, "DB_COMMIT", "Attempting single database commit...", processed, 0);
+      updateStatus(jobId, jobStatus, "DB_COMMIT", "Attempting single database commit...", processed, totalRows);
 
       // Store all in one transaction
       itemRepository.saveAll(batch);
@@ -147,7 +168,7 @@ public class BackgroundCsvProcessor {
    * CHUNK_COMMIT: commit per chunk to limit memory and transaction size.
    * NOTE: Now accepts the jobStatus map.
    */
-  protected UploadResult processChunked(CsvParser parser, int chunkSize, Set<String> existingIds, String jobId, Map<String, Status> jobStatus) throws IOException {
+  protected UploadResult processChunked(CsvParser parser, int chunkSize, Set<String> existingIds, String jobId, Map<String, Status> jobStatus, long totalRows) throws IOException {
     updateStatus(jobId, jobStatus, "PROCESS_CHUNK_STARTED", "Starting chunked processing...", 0, 0);
     List<Item> batch = new ArrayList<>(Math.max(16, chunkSize));
     long processed = 0L;
@@ -162,7 +183,7 @@ public class BackgroundCsvProcessor {
         processed++;
         // Dynamic Progress Tracking (Updates every 5000 rows)
         if (processed % 5000 == 0) {
-          updateStatus(jobId, jobStatus, "PROCESSING", String.format("Processing rows... %d processed", processed), processed, 0);
+          updateStatus(jobId, jobStatus, "PROCESSING", String.format("Processing rows... %d processed", processed), processed, totalRows);
         }
 
         Optional<String> validation = validateRow(row, existingIds);
