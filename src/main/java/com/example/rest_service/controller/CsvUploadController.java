@@ -1,4 +1,3 @@
-// src/main/java/com/example/rest_service/controller/CsvUploadController.java
 package com.example.rest_service.controller;
 
 import com.example.rest_service.service.CsvUploadService;
@@ -21,6 +20,9 @@ public class CsvUploadController {
 
   /**
    * Endpoint to initiate a large file upload. Returns 202 ACCEPTED immediately.
+   * The upload and processing uses asynchronous method by default inorder to prevent usage locks
+   * even if the file size is smaller (<1MB), we assume the processing and validation takes time.
+   *
    */
   @PostMapping
   public ResponseEntity<String> uploadItems(
@@ -29,6 +31,11 @@ public class CsvUploadController {
 
     if (file.isEmpty()) {
       return ResponseEntity.badRequest().body("File must not be empty.");
+    }
+    // 2. Check file type
+    if (!"text/csv".equals(file.getContentType())) {
+      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+              .body("Invalid file type. Only CSV is allowed.");
     }
 
     try {

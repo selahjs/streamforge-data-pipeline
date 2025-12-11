@@ -8,6 +8,8 @@ import java.util.Set;
 
 public interface ItemRepository extends JpaRepository<Item, Long> {
 
+  //For 200,000 rows, this means 200,000 separate network calls to the database, which will be incredibly slow.
+  //instead use the findAllExternalIds to load all ids once and then using in memory checks
   boolean existsByExternalId(String externalId);
 
   //New method to fetch all existing IDs for efficient in-memory validation

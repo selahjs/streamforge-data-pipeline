@@ -69,7 +69,6 @@ public class CsvUploadService {
     updateStatus(jobId, "INIT", "Upload received, preparing for background processing.", 0, 0);
 
     // 3. Delegate work to the @Async component.
-    // --- NEW: Copy the file SYNCHRONOUSLY before returning ---
     try {
       File permanentFile = getSafeStorageFile(file.getOriginalFilename());
       file.transferTo(permanentFile); // Copies the temporary upload file to a safe location

@@ -9,7 +9,6 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 import java.io.UncheckedIOException;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.io.*;
 import java.time.LocalDate;
@@ -61,11 +60,11 @@ public class BackgroundCsvProcessor {
     updateStatus(jobId, jobStatus, "DB_PREFETCH", "Fetching existing unique IDs from DB...", 0, 0);
     Set<String> existingExternalIds = itemRepository.findAllExternalIds();
     updateStatus(jobId, jobStatus, "PREFETCH_COMPLETE", "Unique ID prefetch complete.", 0, 0);
-// --- NEW: Calculate Total Rows ---
+    //quickly count rows to track progress using the dedicated method countLines()
     long totalRows = 0;
     try {
       updateStatus(jobId, jobStatus, "COUNTING_ROWS", "Determining total row count...", 0, 0);
-      // Use a dedicated method for fast line / row counting
+
       totalRows = countLines(permanentFile);
       updateStatus(jobId, jobStatus, "COUNTING_COMPLETE", "Total rows found: " + totalRows, 0, totalRows);
     } catch (IOException e) {
@@ -113,10 +112,10 @@ public class BackgroundCsvProcessor {
     }
   }
 
-  // --- Core Processing Logic ---
-
   /**
    * ALL_OR_NOTHING: single DB transaction for the entire file.
+   * This method is very slow when it comes to handling lard data.
+   * If a validation fails after 99% complete, the whole job will fail since, it's a transaction
    * NOTE: Now accepts the jobStatus map.
    */
   @Transactional
@@ -220,7 +219,6 @@ public class BackgroundCsvProcessor {
     return chunk.size();
   }
 
-  // --- Validation and Mapping Helpers ---
 
   /**
    * Validate a CSV row. Uses the pre-fetched Set for uniqueness check.
