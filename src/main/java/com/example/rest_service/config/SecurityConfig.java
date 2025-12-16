@@ -15,41 +15,6 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
-//@Configuration // Marks the class as a source of bean definitions
-//@EnableWebSecurity
-//public class SecurityConfig {
-//
-//  @Bean
-//  public PasswordEncoder passwordEncoder() {
-//    return new BCryptPasswordEncoder();
-//  }
-//
-//  /**
-//   * 2. Exposes the AuthenticationManager bean, relying on Spring's auto-wiring
-//   * of the UserDetailsService and PasswordEncoder defined elsewhere.
-//   */
-//  @Bean
-//  public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
-//    return config.getAuthenticationManager();
-//  }
-//
-//  /**
-//   * Defines the URL access rules and disables default security features we don't need for an API.
-//   * NOTE: We will complete this method later when we add the JWT filter.
-//   */
-//  @Bean
-//  public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-//    // For now, we allow access to all endpoints, but this will change
-//    http
-//            .csrf(csrf -> csrf.disable()) // Disable CSRF for stateless APIs
-//            .authorizeHttpRequests(auth -> auth
-//                    .anyRequest().permitAll() // Temporarily allow all requests
-//            );
-//
-//    return http.build();
-//  }
-//}
-
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
