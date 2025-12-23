@@ -31,6 +31,26 @@ public class AuthenticationService {
     this.authenticationManager = authenticationManager;
   }
 
+  public AuthenticationResponse processOAuthPostLogin(String email, String name) {
+    // 1. Check if user exists by email
+    User user = userRepository.findByEmail(email)
+            .orElseGet(() -> {
+              // 2. If not, create a new record
+              User newUser = new User();
+              newUser.setUsername(email); // Use email as username or generate one
+              newUser.setEmail(email);
+              // FIX: Set a random UUID as a password to satisfy the NOT NULL constraint
+              // We still encode it just to be safe/consistent with your security logic
+              newUser.setPassword(passwordEncoder.encode(java.util.UUID.randomUUID().toString()));
+              newUser.setRole(Role.ROLE_USER);
+              newUser.setEnabled(true);
+              return userRepository.save(newUser);
+            });
+
+    // 3. Generate your standard JWT for this user
+    String jwtToken = jwtService.generateToken(user);
+    return new AuthenticationResponse(jwtToken, user.getUsername());
+  }
   public AuthenticationResponse register(RegisterRequest request) {
     var user = new User();
     user.setUsername(request.username());

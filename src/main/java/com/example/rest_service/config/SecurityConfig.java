@@ -3,7 +3,6 @@ package com.example.rest_service.config;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -21,19 +20,25 @@ public class SecurityConfig {
 
   // Inject the custom filter we just created
   private final JwtAuthenticationFilter jwtAuthFilter;
+  private final HttpCookieOAuth2AuthorizationRequestRepository cookieAuthorizationRequestRepository;
+
 
   // Inject the custom UserDetailsService (which is also the CustomUserDetailsService)
   private final UserDetailsService userDetailsService;
+
+  private final OAuth2LoginSuccessHandler oauth2SuccessHandler;
 
   // Inject the AuthenticationManager configuration utility
   // private final AuthenticationConfiguration authConfiguration; // Not needed if using the @Bean approach
 
   public SecurityConfig(
-          JwtAuthenticationFilter jwtAuthFilter,
-          UserDetailsService userDetailsService // Injecting by interface
+          JwtAuthenticationFilter jwtAuthFilter, HttpCookieOAuth2AuthorizationRequestRepository cookieAuthorizationRequestRepository,
+          UserDetailsService userDetailsService, OAuth2LoginSuccessHandler oauth2SuccessHandler // Injecting by interface
   ) {
     this.jwtAuthFilter = jwtAuthFilter;
+    this.cookieAuthorizationRequestRepository = cookieAuthorizationRequestRepository;
     this.userDetailsService = userDetailsService;
+    this.oauth2SuccessHandler = oauth2SuccessHandler;
   }
   @Bean
   public PasswordEncoder passwordEncoder() {
@@ -62,6 +67,14 @@ public class SecurityConfig {
             )
             .authenticationProvider(authenticationProvider()) // Set the custom provider
             // Add the custom JWT filter BEFORE the standard Spring filter
+            .oauth2Login(oauth2 -> oauth2
+                    .authorizationEndpoint(authorization -> authorization
+                            .baseUri("/oauth2/authorization")
+                            .authorizationRequestRepository(cookieAuthorizationRequestRepository) // USE COOKIE STORAGE
+                    )
+                    .redirectionEndpoint(redirection -> redirection.baseUri("/login/oauth2/code/*"))
+                    .successHandler(oauth2SuccessHandler)
+            )
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
     return http.build();
