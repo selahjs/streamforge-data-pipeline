@@ -70,7 +70,7 @@ public class SecurityConfig {
             .oauth2Login(oauth2 -> oauth2
                     .authorizationEndpoint(authorization -> authorization
                             .baseUri("/oauth2/authorization")
-                            .authorizationRequestRepository(cookieAuthorizationRequestRepository) // USE COOKIE STORAGE
+                            .authorizationRequestRepository(cookieAuthorizationRequestRepository) // USE COOKIE STORAGE In the browser
                     )
                     .redirectionEndpoint(redirection -> redirection.baseUri("/login/oauth2/code/*"))
                     .successHandler(oauth2SuccessHandler)

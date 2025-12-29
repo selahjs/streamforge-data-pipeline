@@ -31,8 +31,9 @@ public class AuthenticationService {
     this.authenticationManager = authenticationManager;
   }
 
+  //  Google Auth
   public AuthenticationResponse processOAuthPostLogin(String email, String name) {
-    // 1. Check if user exists by email
+    // 1. Check if user exists by email or else register user to db!
     User user = userRepository.findByEmail(email)
             .orElseGet(() -> {
               // 2. If not, create a new record
